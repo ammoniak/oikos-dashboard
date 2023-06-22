@@ -136,6 +136,7 @@ pub struct Options {
     pub template: PathBuf,
     // Dynamic scripting
     pub script: Option<PathBuf>,
+    pub art: Option<String>,
     pub sleep: Option<Sleep>,
     pub wait_for_network: Option<WaitForNetwork>,
     // Resources for rendering
@@ -162,6 +163,12 @@ fn options() -> impl Parser<Options> {
         .argument::<PathBuf>("FILE")
         .group_help("Scripting:")
         .optional();
+    let art = long("art")
+        .env("OIKOS_ART")
+        .help("Art mode")
+        .argument::<String>("ART")
+        .group_help("Art:")
+        .optional();
 
     let resources_dir = long("resources")
         .env("OIKOS_RESOURCES")
@@ -181,6 +188,7 @@ fn options() -> impl Parser<Options> {
     construct!(Options {
         output,
         script,
+        art,
         sleep(),
         wait_for_network(),
         resources_dir,

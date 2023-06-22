@@ -27,6 +27,7 @@ mod rendering;
 mod scripting;
 mod sleep;
 mod timer;
+mod art;
 
 #[derive(Debug)]
 enum Canvas {
@@ -131,6 +132,8 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Script options
     let script = opts.script.map(Script::new);
+    // Art options
+    let art = opts.art;
 
     // Template and rendering options
     let base_dir = opts.template.canonicalize()?.parent().map(|p| p.to_path_buf());
@@ -169,6 +172,11 @@ fn main() -> Result<(), anyhow::Error> {
             doc = script
                 .run_with_document(doc)
                 .map_err(|e| format_err!("Failed to execute script: {}", e))?;
+        }
+
+        if let Some(art) = &art{
+            //ToDo: implement
+            doc = art::generate_maze(doc);
         }
 
         // Render and draw document

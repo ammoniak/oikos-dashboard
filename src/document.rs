@@ -92,6 +92,13 @@ pub struct Alignment {
     pub orientation: Orientation,
     pub relative_to: Option<ElementId>,
 }
+#[derive(Debug, Clone)]
+pub struct AddLine {
+    pub start_x: f64,
+    pub start_y: f64,
+    pub end_x: f64,
+    pub end_y: f64,
+}
 
 #[derive(Copy, Clone, Debug)]
 pub enum Horizontal {
@@ -130,6 +137,97 @@ pub struct Document {
     shared: Rc<RefCell<Shared>>,
     selection: Rc<Vec<Path>>,
 }
+
+#[derive(Debug,Clone)]
+pub struct PathAttributes{
+    fill:Option<String>,
+    fill_opacity: Option<f64>,
+    stroke: Option<String>,
+    stroke_opacity: Option<f64>,
+    stroke_width: Option<f64>,
+    d: Vec<PathDArgument>,
+}
+
+
+impl Default for PathAttributes {
+    fn default() -> Self {
+        Self{
+            fill:None,
+            fill_opacity: None,
+            stroke: None,
+            stroke_opacity: None,
+            stroke_width: None,
+            d: vec![],
+        }
+    }
+}
+
+impl PathAttributes {
+    pub fn new(m:MoveTo) -> PathAttributes{
+        PathAttributes{
+            d: vec![PathDArgument::MoveTo(m)],
+            ..Default::default()
+        }
+    }
+
+
+    pub(crate) fn push_d(&mut self, p0: PathDArgument) -> &mut Self {
+        self.d.push(p0);
+        self
+    }
+
+    pub fn set_fill(&mut self, color:String) -> &mut Self{
+        self.fill=Some(color);
+        self
+    }
+    pub fn set_fill_opacity(&mut self, opacity: f64) -> &mut Self{
+        self.fill_opacity=Some(opacity);
+        self
+    }
+    pub fn set_stroke(&mut self, color:String) -> &mut Self{
+        self.stroke=Some(color);
+        self
+    }
+    pub fn set_stroke_opacity(&mut self, opacity: f64) -> &mut Self{
+        self.stroke_opacity=Some(opacity);
+        self
+    }
+    pub fn set_stroke_width(&mut self, width: f64) -> &mut Self{
+        self.stroke_width=Some(width);
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PathDArgument {
+    MoveTo(MoveTo),
+    LineTo(LineTo),
+    CurveToSmoothQuadratic(CurveToSmoothQuadratic),
+    CurveToQuadratic(CurveToQuadratic),
+}
+#[derive(Debug, Clone)]
+pub struct MoveTo {
+    pub x:f64,
+    pub y:f64,
+}
+#[derive(Debug, Clone)]
+pub struct LineTo {
+    pub x:f64,
+    pub y:f64,
+}
+#[derive(Debug, Clone)]
+pub struct CurveToSmoothQuadratic {
+    pub x:f64,
+    pub y:f64,
+}
+#[derive(Debug, Clone)]
+pub struct CurveToQuadratic {
+    pub x1:f64,
+    pub y1:f64,
+    pub x:f64,
+    pub y:f64,
+}
+
 
 // Based on https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
 static SUPPORTS_TRANSFORM: &'static [&'static str] = &[
@@ -319,6 +417,59 @@ impl Document {
         }
 
         Ok(result)
+    }
+
+    pub fn add_line(&mut self, x1:f64, y1:f64, x2:f64, y2:f64) -> Result<(), Error> {
+
+        let ns = "http://www.w3.org/2000/svg";
+        let mut shared = self.shared.borrow_mut();
+        shared.root.append_new_child((ns,"line"))
+            .set_attr("x1",x1.to_string())
+            .set_attr("y1",y1.to_string())
+            .set_attr("x2",x2.to_string())
+            .set_attr("y2",y2.to_string())
+            .set_attr("stroke","black");
+        Ok(())
+    }
+
+    pub fn add_path(&mut self, path:PathAttributes) -> Result<(), Error> {
+        let ns = "http://www.w3.org/2000/svg";
+        let mut shared = self.shared.borrow_mut();
+        let d = path.d;
+        let s = d.iter().fold(String::new(),|s,e|  s + &*match e {
+            PathDArgument::MoveTo(m) => format!("M{},{} ", m.x, m.y),
+            PathDArgument::LineTo(l) => format!("L{},{} ", l.x, l.y),
+            PathDArgument::CurveToSmoothQuadratic(t) => format!("T{},{} ", t.x, t.y),
+            PathDArgument::CurveToQuadratic(q) => format!("Q{},{},{},{}",q.x1,q.y1,q.x,q.y)
+        });
+
+
+        let mut element = shared.root.append_new_child((ns,"path"))
+            .set_attr("d",s);
+        if let Some(f) = path.fill {
+            element.set_attr("fill", f.clone());
+        }
+        if let Some(fo) = path.fill_opacity {
+            element.set_attr("fill_opacity", fo.to_string());
+        }
+        if let Some(s) = path.stroke {
+            element.set_attr("stroke", s.clone());
+        }
+        if let Some(so) = path.stroke_opacity {
+            element.set_attr("stroke_opacity", so.to_string());
+        }
+        if let Some(sw) = path.stroke_width {
+            element.set_attr("stroke_width", sw.to_string());
+        }
+
+        Ok(())
+    }
+
+    pub fn print_tree(&mut self) -> Result<(), Error> {
+        let mut shared = self.shared.borrow_mut();
+        println!("{:?}", shared.root);
+
+        Ok(())
     }
 
     pub fn prepare(&self) -> Result<(Vec<u8>, Vec<Operation>), Error> {
